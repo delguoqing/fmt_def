@@ -67,7 +67,31 @@ class If(object):
 # ------------- value field BEG -------------------
 
 class Field(object):
-		
+
+	def __init__(self):
+		self.parent = None
+		self.name = None
+		self.index = None
+
+	def setParent(self, parent, i, name):
+		self.parent = parent
+		self.index = i
+		self.name = name
+
+	def getParent(self):
+		return self.parent
+
+	def getDisplayName(self):
+		if self.name is None:
+			return str(self)
+		else:
+			return self.name
+
+	def getSiblingIndex(self):
+		if self.index is None:
+			return 0
+		return self.index
+
 	def getAdvance(self):
 		raise NotImplementedError("getAdvance method is not implemented!")
 	
@@ -76,7 +100,16 @@ class Field(object):
 	
 	def read(self, f, ctx):
 		raise NotImplementedError("read method is not implemented!")
-	
+
+	def getChildCount(self):
+		raise NotImplementedError("getChildCount is not implemented!")
+
+	def getChildren(self):
+		raise NotImplementedError("getChildren is not implemented!")
+
+	def getChild(self, i):
+		raise NotImplementedError("getChild is not implemented!")
+
 	def copy(self):
 		return copy.deepcopy(self)
 	
@@ -107,6 +140,9 @@ class ValueField(Field):
 		
 	def pretty_print(self, prefix="", indent="", **options):
 		return indent + prefix + str(self.getValue())
+
+	def getChildCount(self):
+		return 0
 		
 class StringField(ValueField):
 	def __init__(self, size):
@@ -172,6 +208,9 @@ class NullField(Field):
 	def pretty_print(self, prefix="", indent="", **options):
 		return prefix + indent + "NULL"
 
+	def getChildCount(self):
+		return 0;
+
 class IfField(Field):
 	def __init__(self, cond, expr1, expr2):
 		self.condExpr = cond
@@ -185,11 +224,22 @@ class IfField(Field):
 			self.field = self.field1
 		else:
 			self.field = self.field2
+		self.field.setParent(self, 0, "if")
 		self.field.read(f, ctx)
 		
 	def pretty_print(self, prefix="", indent="", **options):
 		return self.field.pretty_print(prefix=prefix, indent=indent, **options)
-	
+
+	def getChildCount(self):
+		return 1
+
+	def getChildren(self):
+		return [self.field]
+
+	def getChild(self, index):
+		assert index == 0, "IfField has only 1 child."
+		return self.field
+
 class VarField(Field):
 	def __init__(self, expr):
 		self.expr = expr
@@ -206,6 +256,9 @@ class VarField(Field):
 	
 	def pretty_print(self, prefix="", indent="", **options):
 		return indent + prefix + str(type(self.value)) + " = " + str(self.value)
+
+	def getChildCount(self):
+		return 0;
 		
 class ArrayField(Field):
 	def __init__(self, size, field):
@@ -222,6 +275,7 @@ class ArrayField(Field):
 		for i in xrange(size):
 			env.set("I", Value(i))
 			field = self.fieldProto.copy()
+			field.setParent(self, i, "[%d]" % i)
 			field.read(f, ctx)
 			self.array.append(field)
 		env.pop()
@@ -239,16 +293,24 @@ class ArrayField(Field):
 	
 	def getChild(self, index):
 		return self.array[int(index)]
+
+	def getChildCount(self):
+		return len(self.array)
+
+	def getChildren(self, index):
+		return self.array[index]
 	
 class FieldGroup(Field):
 	def __init__(self, fieldList):
+		super(FieldGroup, self).__init__()
 		self.fieldList = fieldList
 		
 	def read(self, f, ctx):
 		env = ctx.getEnv()
 		env.push()
-		for name, field in self.fieldList:
+		for i, (name, field) in enumerate(self.fieldList):
 			env.set(name, field)
+			field.setParent(self, i, name)
 			field.read(f, ctx)
 		env.pop()
 			
@@ -259,10 +321,18 @@ class FieldGroup(Field):
 		return advance
 	
 	def getChild(self, name):
+		if type(name) == int:
+			return self.fieldList[name][1]
 		for _name, _field in self.fieldList:
 			if _name == name:
 				return _field
 		raise Exception("no such field as %s" % name)
+
+	def getChildCount(self):
+		return len(self.fieldList)
+
+	def getChildren(self):
+		return self.fieldList
 	
 	def pretty_print(self, prefix="", indent="", **options):
 		lines = []
@@ -284,17 +354,22 @@ class FarBlock(Field):
 		oldOffset = f.offset
 		offset = self.offsetExpr.eval(ctx).getValue()
 		f.seek(offset)
+		self.field.setParent(self, 0, "far")
 		self.field.read(f, ctx)
 		f.seek(oldOffset)
 		
 	def pretty_print(self, prefix="", indent="", **options):
 		return self.field.pretty_print(prefix, indent, **options)
 	
-	def getChild(self, name):
-		return self.field.getChild(name)
-	
-	def getValue(self):
-		return self.field.getValue() 
+	def getChild(self, index):
+		assert index == 0, "FarBlock has only 1 child!"
+		return self.field
+
+	def getChildren(self):
+		return [self.field]
+
+	def getChildCount(self):
+		return 1
 		
 class GetField(object):
 	def __init__(self, fieldPath):
