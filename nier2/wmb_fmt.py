@@ -1,17 +1,17 @@
 from ..core import *
 
 def BlockEntryField():
-	return FieldGroup([
+	return StructField([
 		["offset", Uint32Field()],
 		["count", Uint32Field()],
 	])
 
-WMB3Format = FieldGroup([
+WMB3Format = StructField([
 	["FOURCC", StringField(Value(4))],
 	["version", Uint32Field()],
 	["dummy", Uint32Field()],
 	["flags", Uint32Field()],
-	["bounding_box", FieldGroup([
+	["bounding_box", StructField([
 		["x", FloatField()],
 		["y", FloatField()],
 		["z", FloatField()],
@@ -28,7 +28,7 @@ WMB3Format = FieldGroup([
 		)
 	)],
 	
-	["blockEntryList", FieldGroup([
+	["blockEntryList", StructField([
 		["boneEntry", BlockEntryField()],
 		["unk1Entry", BlockEntryField()],
 		["geoEntry", BlockEntryField()],
@@ -47,7 +47,7 @@ WMB3Format = FieldGroup([
 		GetField("blockEntryList/boneEntry/offset"),
 		ArrayField(
 			GetField("blockEntryList/boneEntry/count"),
-			FieldGroup([
+			StructField([
 				["boneId", Uint16Field()],
 				["parentIdx", Int16Field()],
 				["local_pos", Vector3Field()],
@@ -73,7 +73,7 @@ WMB3Format = FieldGroup([
 		GetField("blockEntryList/geoEntry/offset"),
 		ArrayField(
 			GetField("blockEntryList/geoEntry/count"),
-			FieldGroup([
+			StructField([
 				
 				["vbOffsetList", ArrayField(
 					Value(4),
@@ -113,7 +113,7 @@ WMB3Format = FieldGroup([
 		GetField("blockEntryList/subMeshEntry/offset"),
 		ArrayField(
 			GetField("blockEntryList/subMeshEntry/count"),
-			FieldGroup([
+			StructField([
 				["geoIdx", Uint32Field()],
 				["bonesetIdx", Int32Field()],
 				["vstart", Uint32Field()],
@@ -129,11 +129,11 @@ WMB3Format = FieldGroup([
 		GetField("blockEntryList/lodEntry/offset"),
 		ArrayField(
 			GetField("blockEntryList/lodEntry/count"),
-			FieldGroup([
+			StructField([
 				["nameOffset", Uint32Field()],
 				["name", FarBlock(
 					GetField("nameOffset"),
-					NullTerminatedStringField(),
+					CStringField(),
 				)],
 				["lodLevel", Int32Field()],
 				["submeshInfoStart", Uint32Field()],
@@ -144,7 +144,7 @@ WMB3Format = FieldGroup([
 					GetField("submeshInfoOffset"),
 					ArrayField(
 						GetField("submeshInfoNum"),
-						FieldGroup([
+						StructField([
 							["geoIndex", Uint32Field()],
 							["meshGroupIndex", Uint32Field()],
 							["matIndex", Uint32Field()],
@@ -170,7 +170,7 @@ WMB3Format = FieldGroup([
 		GetField("blockEntryList/boneSetEntry/offset"),
 		ArrayField(
 			GetField("blockEntryList/boneSetEntry/count"),
-			FieldGroup([
+			StructField([
 				["offset", Uint32Field()],
 				["count", Uint32Field()],
 				["boneIndexList", FarBlock(
@@ -188,7 +188,7 @@ WMB3Format = FieldGroup([
 		GetField("blockEntryList/matEntry/offset"),
 		ArrayField(
 			GetField("blockEntryList/matEntry/count"),
-			FieldGroup([
+			StructField([
 				["unk0", Uint16Field()],
 				["unk1", Uint16Field()],
 				["unk2", Uint16Field()],
@@ -206,26 +206,26 @@ WMB3Format = FieldGroup([
 				
 				["materialName", FarBlock(
 					GetField("materialNameOffset"),
-					NullTerminatedStringField(),
+					CStringField(),
 				)],
 				["effectName", FarBlock(
 					GetField("effectNameOffset"),
-					NullTerminatedStringField(),
+					CStringField(),
 				)],
 				["techniqueName", FarBlock(
 					GetField("techniqueNameOffset"),
-					NullTerminatedStringField(),
+					CStringField(),
 				)],
 				["samplerList", FarBlock(
 					GetField("samplerOffset"),
 					ArrayField(
 						GetField("samplerNum"),
-						FieldGroup([
+						StructField([
 							["nameOffset", Uint32Field()],
 							["textureHash", Uint32Field()],
 							["name", FarBlock(
 								GetField("nameOffset"),
-								NullTerminatedStringField(),
+								CStringField(),
 							)]
 						])
 					)
@@ -234,12 +234,12 @@ WMB3Format = FieldGroup([
 					GetField("varOffset"),
 					ArrayField(
 						GetField("varNum"),
-						FieldGroup([
+						StructField([
 							["nameOffset", Uint32Field()],
 							["value", FloatField()],
 							["name", FarBlock(
 								GetField("nameOffset"),
-								NullTerminatedStringField(),
+								CStringField(),
 							)]
 						])
 					)
@@ -252,9 +252,9 @@ WMB3Format = FieldGroup([
 		GetField("blockEntryList/meshGroupEntry/offset"),
 		ArrayField(
 			GetField("blockEntryList/meshGroupEntry/count"),
-			FieldGroup([
+			StructField([
 				["nameOffset", Uint32Field()],
-				["boundingBox", FieldGroup([
+				["boundingBox", StructField([
 					["x", FloatField()],
 					["y", FloatField()],
 					["z", FloatField()],
@@ -269,7 +269,7 @@ WMB3Format = FieldGroup([
 				
 				["name", FarBlock(
 					GetField("nameOffset"),
-					NullTerminatedStringField(),
+					CStringField(),
 				)],
 				["data2", FarBlock(
 					GetField("offset2"),

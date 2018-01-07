@@ -72,6 +72,7 @@ class Field(object):
 		self.parent = None
 		self.name = None
 		self.index = None
+		self.offset = None
 
 	def setParent(self, parent, i, name):
 		self.parent = parent
@@ -80,6 +81,14 @@ class Field(object):
 
 	def getParent(self):
 		return self.parent
+	
+	def getOffset(self):
+		return self.offset
+	
+	def getFormatedOffset(self):
+		if self.offset is None or self.offset < 0:
+			return ""
+		return "0x%X" % self.offset
 
 	def getDisplayName(self):
 		if self.name is None:
@@ -114,8 +123,14 @@ class Field(object):
 		return copy.deepcopy(self)
 	
 	def pretty_print(self, prefix="", indent="", **options):
-		return indent + prefix + str(self)
+		return indent + prefix + self.getFormatedValue(**options)
 	
+	def getFormatedValue(self, **options):
+		return str(self)
+	
+	def getTypeName(self):
+		return "Field"
+		
 class ValueField(Field):
 	def __init__(self):
 		self.value = None
@@ -136,31 +151,48 @@ class ValueField(Field):
 		return self
 	
 	def read(self, f, ctx):
+		self.offset = f.offset
 		self.value = f.get(self.getInternalFormat(ctx))
 		
-	def pretty_print(self, prefix="", indent="", **options):
-		return indent + prefix + str(self.getValue())
-
+	def getFormatedValue(self, **options):
+		return str(self.getValue())
+	
 	def getChildCount(self):
 		return 0
 		
 class StringField(ValueField):
 	def __init__(self, size):
-		self.size = size
+		self.sizeExpr = size
 		
 	def getInternalFormat(self, ctx):
-		return "%ds" % (self.size.eval(ctx).getValue())
+		return "%ds" % (self.sizeExpr.eval(ctx).getValue())
+	
+	def getTypeName(self):
+		return "String"
+	
+	def getFormatedValue(self):
+		return repr(self.getValue())
 		
-class NullTerminatedStringField(ValueField):
+class CStringField(ValueField):
 	def read(self, f, ctx):
+		self.offset = f.offset
 		self.value = f.get_cstring()
 		
 	def getAdvance(self):
 		return len(self.value) + 1
 	
+	def getTypeName(self):
+		return "CString"
+	
+	def getFormatedValue(self):
+		return repr(self.getValue())	
+	
 class Uint32Field(ValueField):
 	def getInternalFormat(self, ctx):
 		return "I"
+	
+	def getTypeName(self):
+		return "Uint32"
 		
 class Int32Field(ValueField):
 	def __init__(self):
@@ -169,21 +201,43 @@ class Int32Field(ValueField):
 	def getInternalFormat(self, ctx):
 		return "i"
 	
+	def getTypeName(self):
+		return "Int32"
+	
 class Uint16Field(ValueField):
 	def getInternalFormat(self, ctx):
 		return "H"
+	
+	def getTypeName(self):
+		return "Uint16"
 	
 class Int16Field(ValueField):
 	def getInternalFormat(self, ctx):
 		return "h"
 	
+	def getTypeName(self):
+		return "Int16"
+	
 class Uint8Field(ValueField):
 	def getInternalFormat(self, ctx):
 		return "B"
 	
+	def getTypeName(self):
+		return "Uint8"
+
+class Int8Field(ValueField):
+	def getInternalFormat(self, ctx):
+		return "i"
+	
+	def getTypeName(self):
+		return "Int8"
+	
 class FloatField(ValueField):
 	def getInternalFormat(self, ctx):
 		return "f"
+	
+	def getTypeName(self):
+		return "Float"
 
 class RawData(ValueField):
 	def __init__(self, size):
@@ -192,10 +246,14 @@ class RawData(ValueField):
 		
 	def read(self, f, ctx):
 		self.size = self.sizeExpr.eval(ctx).getValue()
+		self.offset = f.offset
 		self.value = f.get_raw(self.size)
 		
-	def pretty_print(self, prefix="", indent="", **options):
-		return indent + prefix + "###rawdata[%d]###" % self.size
+	def getFormatedValue(self, **options):
+		return "###rawdata[%d]###" % self.size
+	
+	def getTypeName(self):
+		return "RawData"
 	
 # ---------------- value field END ------------------
 		
@@ -203,11 +261,11 @@ class RawData(ValueField):
 
 class NullField(Field):
 	def read(self, f, ctx):
-		pass
+		self.offset = -1
 	
-	def pretty_print(self, prefix="", indent="", **options):
-		return prefix + indent + "NULL"
-
+	def getFormatedValue(self, **options):
+		return "NULL"
+		
 	def getChildCount(self):
 		return 0;
 
@@ -224,9 +282,13 @@ class IfField(Field):
 			self.field = self.field1
 		else:
 			self.field = self.field2
+		self.offset = f.offset
 		self.field.setParent(self, 0, "if")
 		self.field.read(f, ctx)
 		
+	def getFormatedValue(self, **options):
+		return "if"
+	
 	def pretty_print(self, prefix="", indent="", **options):
 		return self.field.pretty_print(prefix=prefix, indent=indent, **options)
 
@@ -239,6 +301,9 @@ class IfField(Field):
 	def getChild(self, index):
 		assert index == 0, "IfField has only 1 child."
 		return self.field
+	
+	def getTypeName(self):
+		return "If"
 
 class VarField(Field):
 	def __init__(self, expr):
@@ -246,6 +311,7 @@ class VarField(Field):
 		self.value = None
 		
 	def read(self, f, ctx):
+		self.offset = -1
 		self.value = self.expr.eval(ctx).getValue()
 	
 	def eval(self, ctx):
@@ -254,25 +320,33 @@ class VarField(Field):
 	def getAdvance(self):
 		return 0
 	
+	def getFormatedValue(self, **options):
+		return str(self.value)
+		
 	def pretty_print(self, prefix="", indent="", **options):
 		return indent + prefix + str(type(self.value)) + " = " + str(self.value)
 
 	def getChildCount(self):
-		return 0;
+		return 0
+	
+	def getTypeName(self):
+		return "Var"
 		
 class ArrayField(Field):
 	def __init__(self, size, field):
-		self.size = size
+		self.sizeExpr = size
 		self.fieldProto = field
 		self.array = []
+		self.size = None
 		
 	def read(self, f, ctx):
-		size = self.size.eval(ctx).getValue()
+		self.offset = f.offset
+		self.size = self.sizeExpr.eval(ctx).getValue()
 		
 		env = ctx.getEnv()
 		env.push()
 		self.array = []		
-		for i in xrange(size):
+		for i in xrange(self.size):
 			env.set("I", Value(i))
 			field = self.fieldProto.copy()
 			field.setParent(self, i, "[%d]" % i)
@@ -295,17 +369,27 @@ class ArrayField(Field):
 		return self.array[int(index)]
 
 	def getChildCount(self):
-		return len(self.array)
+		return self.size
 
 	def getChildren(self, index):
 		return self.array[index]
 	
-class FieldGroup(Field):
+	def getTypeName(self):
+		if self.getChildCount() == 0:
+			return "Object[0]"
+		else:
+			return self.array[0].getTypeName() + "[%d]" % self.getChildCount()
+		
+	def getFormatedValue(self):
+		return ""
+	
+class StructField(Field):
 	def __init__(self, fieldList):
-		super(FieldGroup, self).__init__()
+		super(StructField, self).__init__()
 		self.fieldList = fieldList
 		
 	def read(self, f, ctx):
+		self.offset = f.offset
 		env = ctx.getEnv()
 		env.push()
 		for i, (name, field) in enumerate(self.fieldList):
@@ -341,7 +425,13 @@ class FieldGroup(Field):
 			lines.append(field.pretty_print("%s = " % name, indent + "  ", **options))
 		lines.append(indent + "}")
 		return "\n".join(lines)
-			
+	
+	def getFormatedValue(self, **options):
+		return ""
+	
+	def getTypeName(self):
+		return "Struct"
+		
 class FarBlock(Field):
 	def __init__(self, offset, field):
 		self.offsetExpr = offset
@@ -352,12 +442,15 @@ class FarBlock(Field):
 	
 	def read(self, f, ctx):
 		oldOffset = f.offset
-		offset = self.offsetExpr.eval(ctx).getValue()
-		f.seek(offset)
-		self.field.setParent(self, 0, "far")
+		self.offset = self.offsetExpr.eval(ctx).getValue()
+		f.seek(self.offset)
+		self.field.setParent(self, 0, "*")
 		self.field.read(f, ctx)
 		f.seek(oldOffset)
 		
+	def getFormatedValue(self):
+		return self.field.getFormatedValue()
+	
 	def pretty_print(self, prefix="", indent="", **options):
 		return self.field.pretty_print(prefix, indent, **options)
 	
@@ -370,6 +463,9 @@ class FarBlock(Field):
 
 	def getChildCount(self):
 		return 1
+	
+	def getTypeName(self):
+		return "*" + self.field.getTypeName()
 		
 class GetField(object):
 	def __init__(self, fieldPath):
@@ -381,14 +477,14 @@ class GetField(object):
 # ---------------- special field END -------------------
 	
 def Vector3Field():
-	return FieldGroup([
+	return StructField([
 		["x", FloatField()],
 		["y", FloatField()],
 		["z", FloatField()],
 	])
 	
 def Vector2Field():
-	return FieldGroup([
+	return StructField([
 		["x", FloatField()],
 		["y", FloatField()],
 	])
