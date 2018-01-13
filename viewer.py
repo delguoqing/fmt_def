@@ -1,3 +1,4 @@
+# -*- coding: utf8 -*-
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import Qt # the QT namespace
 import sys
@@ -109,10 +110,16 @@ class MainWindow(QtGui.QMainWindow):
         dockWidget.setWidget(view)
         self.addDockWidget(Qt.LeftDockWidgetArea, dockWidget)
         self.hierarchy = view
+        view.clicked.connect(self.onHierachyViewItemClicked)
         
     def setBinaryData(self, data):
         self.centralWidget().setData(data)
-    
+
+    def onHierachyViewItemClicked(self, index):
+        node = index.internalPointer()
+        offset = node.getOffset()
+        self.centralWidget().jumpToOffset(offset)
+        
     def keyPressEvent(self, e):
         if e.key() == Qt.Key_Escape:
             QtGui.QApplication.quit()
@@ -133,18 +140,17 @@ class QHexWidget(QtGui.QAbstractScrollArea):
         self.hexColumnCount = 0x10
         # header area
         #   common
-        self.headerBgColor = QtGui.QColor(128, 128, 128)
+        self.headerBgColor = Qt.lightGray
         #   row header area
         self.rowHeaderWidth = 80
         # ascii area
-        self.splitterWidth = 10
         self.asciiAreaWidth = 128
         
         self.initUI()
         
     def initUI(self):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         self.verticalScrollBar().valueChanged.connect(self.onSliderValueChanged)
         
     def setData(self, data):
@@ -177,7 +183,6 @@ class QHexWidget(QtGui.QAbstractScrollArea):
         total = 0
         total += self.rowHeaderWidth
         total += self.hexGridWidth * self.hexColumnCount
-        total += self.splitterWidth
         total += self.asciiAreaWidth
         return total
     
@@ -224,6 +229,10 @@ class QHexWidget(QtGui.QAbstractScrollArea):
                             self.asciiAreaWidth, self.getRowHeaderHeight())
         
     def drawWidget(self, qp):
+        # 用于绘制文本的通用QTextOption，文本需要被绘制在矩形区域的中央
+        # 本来Qt中应该传入QAlignment对象，但是pyqt的文档说可以使用QAlignmentFlag是等价的
+        commTxtOption = QtGui.QTextOption(Qt.AlignCenter)
+        
         # header
         #   top left corner
         qp.fillRect(0, 0, self.rowHeaderWidth, self.getColumnHeaderHeight(),
@@ -235,7 +244,8 @@ class QHexWidget(QtGui.QAbstractScrollArea):
         x = self.getColumnHeaderRect().x()
         y = self.getColumnHeaderRect().y()
         for i in xrange(self.hexColumnCount):
-            qp.drawText(QtCore.QPointF(x, y + self.hexGridHeight), "%X" % (i % 16))
+            qp.drawText(QtCore.QRectF(x, y, self.hexGridWidth, self.getColumnHeaderHeight()),
+                        "%X" % (i % 16), commTxtOption)
             x += self.hexGridWidth
         #   row
         #       bg
@@ -245,7 +255,8 @@ class QHexWidget(QtGui.QAbstractScrollArea):
         y = self.getColumnHeaderHeight()
         offset = self.getBeginOffset()
         for i in xrange(self.getVisibleLineCount()):
-            qp.drawText(QtCore.QPointF(x, y + self.hexGridHeight), "%08X" % offset)
+            qp.drawText(QtCore.QRectF(x, y, self.getRowHeaderWidth(), self.hexGridHeight),
+                        "%08X" % offset, commTxtOption)
             y += self.hexGridHeight
             offset += self.hexColumnCount
         # hex values
@@ -259,7 +270,8 @@ class QHexWidget(QtGui.QAbstractScrollArea):
             x = self.getRowHeaderWidth()
             for j in xrange(self.hexColumnCount):
                 v = values[i * self.hexColumnCount + j]
-                qp.drawText(QtCore.QPointF(x, y + self.hexGridHeight), "%02X" % v)
+                qp.drawText(QtCore.QRectF(x, y, self.hexGridWidth, self.hexGridHeight),
+                            "%02X" % v, commTxtOption)
                 x += self.hexGridWidth
             y += self.hexGridHeight
 
@@ -267,14 +279,14 @@ class QHexWidget(QtGui.QAbstractScrollArea):
         #   splitter
         rect = self.getAsciiAreaRect()
         # splitter
-        qp.drawLine(rect.left() + self.splitterWidth * 0.5, 0,
-                    rect.left() + self.splitterWidth * 0.5, rect.bottom())
-        x = rect.x() + self.splitterWidth
+        qp.drawLine(rect.left(), 0, rect.left(), rect.bottom())
+        x = rect.x()
         y = rect.y()
         for i in xrange(self.getVisibleLineCount()):
             s = bytedata[i * self.hexColumnCount: (i + 1) * self.hexColumnCount]
             s = "".join(map(lambda ch: ch if ch in PRINTABLE else ".", s))
-            qp.drawText(QtCore.QPointF(x, y + self.hexGridHeight), s)
+            qp.drawText(QtCore.QRectF(x, y, rect.width(), self.hexGridHeight), s,
+                        commTxtOption)
             y += self.hexGridHeight
         
     def maximumViewportSize(self):
@@ -285,6 +297,10 @@ class QHexWidget(QtGui.QAbstractScrollArea):
     
     def onSliderValueChanged(self, newValue):
         self.viewport().update()
+        
+    def jumpToOffset(self, offset):
+        newLineNo = offset / self.hexColumnCount
+        self.verticalScrollBar().setValue(newLineNo)
 
 def view_format(format, binary_data):
     app = QtGui.QApplication(sys.argv)
