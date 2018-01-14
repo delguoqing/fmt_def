@@ -17,7 +17,7 @@ class QHexWidget(QtGui.QAbstractScrollArea):
         #   common
         self.headerBgColor = Qt.lightGray
         #   row header area
-        self.rowHeaderWidth = 80
+        self.rowHeaderWidth = 100
         self.splitterWidth = 8
         # ascii area
         self.asciiAreaWidth = 164
@@ -28,6 +28,7 @@ class QHexWidget(QtGui.QAbstractScrollArea):
         self.cursorRectSize = QtCore.QSize(20, 23)
         self.cursorBlinkState = 0
         self.cursorRectAscii = None
+        self.holdBlinkStateCounter = 0
         
         self.timerBlink = QtCore.QTimer(self)
         self.timerBlink.timeout.connect(self.onTimerBlinkTimeout)
@@ -285,8 +286,15 @@ class QHexWidget(QtGui.QAbstractScrollArea):
         self.setCursorPosition(self.cursorPos)
         
     def onTimerBlinkTimeout(self):
+        if self.holdBlinkStateCounter > 0:
+            self.holdBlinkStateCounter -= 1
+            return
         self.cursorBlinkState = 1 - self.cursorBlinkState
         self.updateCursor()
+        
+    def holdBlinkState(self, state, counter=1):
+        self.cursorBlinkState = state
+        self.holdBlinkStateCounter = counter
         
     def updateCursor(self):
         if self.isCursorVisible():
@@ -326,7 +334,7 @@ class QHexWidget(QtGui.QAbstractScrollArea):
         self.cursorRectAscii = self.getAsciiLineRect(position)
         
         if self.isCursorVisible():
-            self.cursorBlinkState = 1
+            self.holdBlinkState(1, 1)
             self.updateCursor()
             
     def setCursorPostionAndScroll(self, position):

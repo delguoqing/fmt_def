@@ -13,3 +13,4 @@
 - [x] draw cursor in ascii area!!
 - [x] navigate to selected structure field
 - [ ] show title in title bar
+- [ ] add python console dock widget
