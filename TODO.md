@@ -1,0 +1,15 @@
+- [ ] calculate binary coverage for specific format
+- [ ] implement highlight of field in hex view
+- [ ] a DSL for defining binary format (currenctly using python as meta language)
+- [ ] add edit ability
+- [ ] navigation in hex view
+- [ ] data inspector
+- [ ] format inspector
+- [ ] document pessistent
+- [ ] selection
+- [x] limit last screen scroll bar range
+- [x] align ascii area text to left
+- [x] handle click events => move cursor
+- [x] draw cursor in ascii area!!
+- [x] navigate to selected structure field
+- [ ] show title in title bar
