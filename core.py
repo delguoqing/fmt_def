@@ -387,6 +387,7 @@ class StructField(Field):
 	def __init__(self, fieldList):
 		super(StructField, self).__init__()
 		self.fieldList = fieldList
+		self.checkValidity()
 		
 	def read(self, f, ctx):
 		self.offset = f.offset
@@ -431,6 +432,14 @@ class StructField(Field):
 	
 	def getTypeName(self):
 		return "Struct"
+	
+	def checkValidity(self):
+		nameSet = set()
+		for _name, _field in self.fieldList:
+			if _name in nameSet:
+				raise Exception("duplicate field name %s" % _name)
+			else:
+				nameSet.add(_name)
 		
 class FarBlock(Field):
 	def __init__(self, offset, field):
